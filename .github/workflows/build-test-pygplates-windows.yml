@@ -1,0 +1,53 @@
+# This workflow builds and tests pygplates on Windows
+# Dependencies installed via conda from `.github/condaenvs/env.WIN.yml`
+# Tests run from pygplates/test/test.py
+name: pygplates build and test (Windows)
+
+on:
+  push:
+    branches: [ "pygplates", "pygplates-windows-testenv" ]
+  pull_request:
+    branches: [ "pygplates" ]
+  workflow_dispatch:
+
+env:
+  ENV_NAME: pygplates  # the conda environment name
+
+jobs:
+  build-test-windows:
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash -el {0}  # use bash so conda activate works
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        use-mamba: true
+        python-version: ${{ matrix.python-version }}
+        environment-file: .github/condaenvs/env.WIN.yml
+        activate-environment: ${{ env.ENV_NAME }}
+
+    - name: Conda diagnostic
+      run: conda info
+
+    - name: Build pygplates
+      run: |
+        # Resolve the conda env prefix for CMake
+        CONDA_ENV_PREFIX="$(conda info --base)/envs/$ENV_NAME"
+        pip install -vv \
+          -C "cmake.define.CMAKE_PREFIX_PATH=${CONDA_ENV_PREFIX}" \
+          -C "cmake.generator=Ninja" \
+          .
+
+    - name: Test pygplates
+      run: python pygplates/test/test.py
